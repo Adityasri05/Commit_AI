@@ -33,35 +33,34 @@ import numpy as np
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 
-scaler = StandardScaler()
 model = SGDClassifier(loss="log_loss", random_state=42)
 classes = np.array([0, 1])
 
-# Warm-up batch: fit the scaler and initialize the classifier.
+# Use an initial warm-up batch to fit preprocessing once.
 X0, y0 = next(stream)
-X0_scaled = scaler.partial_fit(X0).transform(X0)
-model.partial_fit(X0_scaled, y0, classes=classes)
+scaler = StandardScaler().fit(X0)
+model.partial_fit(scaler.transform(X0), y0, classes=classes)
 
 for X_batch, y_batch in stream:
+    # Keep the feature coordinate system fixed while this model is updated.
     X_scaled = scaler.transform(X_batch)
 
     # Score before updating with the current batch.
     predictions = model.predict(X_scaled)
     record_metrics(y_batch, predictions)
 
-    # Update the model only after labels are available.
-    scaler.partial_fit(X_batch)
-    model.partial_fit(scaler.transform(X_batch), y_batch)
+    # Update only after the labels are available.
+    model.partial_fit(X_scaled, y_batch)
 ~~~
 
-This is a teaching pattern. In a real pipeline, keep the scaler/model update order consistent and version the preprocessing state with the model. Avoid silently changing the feature scale used by an existing model.
+This example deliberately keeps the scaler fixed after warm-up. Updating scaling statistics while retaining the same classifier coefficients changes the feature coordinate system and can make the model's weights inconsistent. If preprocessing must change, version it and retrain or carefully transform the model state; do not silently change it.
 
 ## Important design choices
 
 - **Learning rate:** Too high can make updates unstable; too low can adapt slowly.
 - **Replay or recent windows:** Reusing selected past examples can reduce catastrophic forgetting, but requires storage and privacy review.
 - **Class availability:** Incremental classifiers may need the full class list at initialization.
-- **Feature normalization:** Maintain consistent preprocessing statistics and checkpoint them.
+- **Feature normalization:** Maintain consistent preprocessing statistics and checkpoint them with the model.
 - **Delayed labels:** Separate prediction time from label-arrival time.
 - **Update cadence:** Per-event, micro-batch, or scheduled updates have different latency and reliability trade-offs.
 
