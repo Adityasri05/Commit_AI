@@ -67,7 +67,9 @@ model = SelfTrainingClassifier(
 )
 model.fit(X_train, y_partial)
 
-print("Accepted labeled rows:", model.labeled_iter_.size)
+print("Initially labeled rows:", int(keep_labeled.sum()))
+print("Pseudo-labeled rows:", int((model.labeled_iter_ > 0).sum()))
+print("Total labeled rows:", int((model.labeled_iter_ >= 0).sum()))
 print(classification_report(y_test, model.predict(X_test)))
 ```
 
